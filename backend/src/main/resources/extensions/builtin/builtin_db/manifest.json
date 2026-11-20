@@ -1,0 +1,97 @@
+{
+  "code": "builtin_db",
+  "name": "业务系统数据查询",
+  "version": "1.0.1",
+  "vendor": "bizagent",
+  "description": "对业务系统数据库执行只读查询，支持表清单与表结构查看",
+  "packType": "declarative",
+  "apiVersion": "1",
+  "tools": [
+    {
+      "code": "query",
+      "kind": "sql",
+      "displayName": "数据库查询",
+      "description": "对指定的业务系统数据库执行只读 SQL 查询（仅支持 SELECT / WITH）。SQL 中的参数请使用 #{参数名} 命名占位符并通过 params 传入，禁止拼接字符串。结果默认最多返回数据源配置的行数上限。",
+      "renderType": "table",
+      "riskLevel": "medium",
+      "anonymousAllowed": false,
+      "binding": {
+        "action": "query"
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "datasource": {
+            "type": "string",
+            "description": "数据源编码（技能提示词中会给出可用编码）"
+          },
+          "sql": {
+            "type": "string",
+            "description": "只读 SQL 语句，参数使用 #{参数名} 占位符"
+          },
+          "params": {
+            "type": "object",
+            "description": "SQL 命名参数，键为占位符名称"
+          }
+        },
+        "required": [
+          "datasource",
+          "sql"
+        ]
+      }
+    },
+    {
+      "code": "list_tables",
+      "kind": "sql",
+      "displayName": "表清单",
+      "description": "列出数据源中的表及其注释，用于了解可查询的业务表。",
+      "renderType": "table",
+      "riskLevel": "medium",
+      "anonymousAllowed": false,
+      "binding": {
+        "action": "list_tables"
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "datasource": {
+            "type": "string",
+            "description": "数据源编码"
+          }
+        },
+        "required": [
+          "datasource"
+        ]
+      }
+    },
+    {
+      "code": "describe_table",
+      "kind": "sql",
+      "displayName": "表结构",
+      "description": "查看指定表的字段结构、类型与注释。",
+      "renderType": "table",
+      "riskLevel": "medium",
+      "anonymousAllowed": false,
+      "binding": {
+        "action": "describe_table"
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "datasource": {
+            "type": "string",
+            "description": "数据源编码"
+          },
+          "table": {
+            "type": "string",
+            "description": "表名"
+          }
+        },
+        "required": [
+          "datasource",
+          "table"
+        ]
+      }
+    }
+  ]
+}

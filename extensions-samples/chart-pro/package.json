@@ -1,0 +1,23 @@
+{
+  "name": "chart-pro-extension",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BizAgent 示例扩展包：雷达图渲染器",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "pack": "npm run build && node scripts/pack.mjs"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@vitejs/plugin-react": "^4.3.1",
+    "react": "^18.3.1",
+    "recharts": "^2.12.7",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4"
+  }
+}

@@ -1,0 +1,124 @@
+spring:
+  application:
+    name: bizagent
+
+  # 数据源配置 - PostgreSQL（通过环境变量覆盖）
+  datasource:
+    url: ${BIZAGENT_DB_URL:jdbc:postgresql://localhost:5432/bizagent}
+    username: ${BIZAGENT_DB_USERNAME:bizagent}
+    password: ${BIZAGENT_DB_PASSWORD:bizagent}
+    driver-class-name: ${BIZAGENT_DB_DRIVER:org.postgresql.Driver}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  # JPA：表结构由 backend/schema.sql 管理，应用不做 DDL
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: ${app.database.schema}
+        boot:
+          allow_jdbc_metadata_access: false
+
+  # Jackson 配置
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+    default-property-inclusion: non_null
+
+# 服务器配置
+server:
+  port: 8080
+
+# JWT 配置
+app:
+  database:
+    schema: bi
+  agent:
+    max-turns: 25       # Agent 最大推理轮次
+    max-tools: 40       # 单次运行最多注入的工具数量
+  # 主密钥：用于加密 LLM API Key / 数据源密码 / 接口鉴权配置
+  # 未配置时首次启动会在 data.dir/master.key 生成，生产环境务必通过环境变量固定
+  security:
+    master-key: ${BIZAGENT_MASTER_KEY:}
+    # 跨域：默认仅同源；独立前端域名时填入，如 http://localhost:5173
+    cors:
+      allowed-origins: ${BIZAGENT_CORS_ORIGINS:}
+    # 出站安全（接口调用 SSRF 防护）
+    outbound:
+      allow-private-networks: false   # 内网接口默认禁止，需在 allowed-hosts 显式放行
+      allow-loopback: false
+      allowed-hosts: ${BIZAGENT_OUTBOUND_HOSTS:}
+  data:
+    dir: ${BIZAGENT_DATA_DIR:./data}
+  # 扩展包运行时
+  extension:
+    storage-dir: ${BIZAGENT_EXT_HOME:./data/extensions}
+    allow-code-packs: true
+    max-package-mb: 50
+    tool-timeout-seconds: 60
+    builtin-location: classpath*:extensions/builtin
+    bootstrap-builtin: true
+  # 业务系统数据源
+  datasource:
+    pool-max-size: 5
+    query-max-rows: 2000
+    query-timeout-seconds: 30
+    # 内网数据库为主要场景，默认允许；云元数据/回环地址始终禁止
+    allow-private-networks: true
+    # 外部 JDBC 驱动 jar 存放目录（仅管理员可配置，且只能引用该目录内文件）
+    driver-dir: ${BIZAGENT_DRIVER_DIR:./data/drivers}
+  jwt:
+    # 仅供本地开发；生产必须通过 BIZAGENT_JWT_SECRET 配置（Base64，解码后 ≥ 64 字节）
+    secret: ${BIZAGENT_JWT_SECRET:Yml6YWdlbnQtZGV2LW9ubHktand0LXNlY3JldC1wbGVhc2UtY2hhbmdlLWluLXByb2R1Y3Rpb24tMDEyMzQ1Njc4OWFiY2RlZg==}
+    access-token-expiration: 900000      # 15分钟 (毫秒)
+    refresh-token-expiration: 604800000  # 7天 (毫秒)
+
+  # LLM 配置 - DeepSeek（OpenAI 兼容接口）
+  llm:
+    deepseek:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      # DeepSeek-V4.1-Flash（官方 /models 返回的最新模型；备选：deepseek-v4-pro）
+      model: ${DEEPSEEK_MODEL:deepseek-flash}
+      max-tokens: 8192
+      temperature: 0.7
+      # 是否打印完整请求体/SSE 原文（包含业务数据，仅调试时开启）
+      log-raw-payload: ${BIZAGENT_LOG_RAW_PAYLOAD:false}
+
+  # 文件导出目录（不可写时自动回退系统临时目录）
+  export:
+    dir: ${APP_EXPORT_DIR:./data/exports}
+
+  # 工作空间目录
+  workspace:
+    dir: ${BIZAGENT_WORKSPACE_DIR:./data/workspace}
+
+# 日志
+logging:
+  level:
+    root: INFO
+    # 生产环境保持 INFO；排查问题时可临时改为 DEBUG（同时开启 app.llm.log-raw-payload）
+    fun.jinwei.ai.biz: ${BIZAGENT_LOG_LEVEL:INFO}
+
+# 健康检查：仅暴露 health / info（供容器探针使用）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true

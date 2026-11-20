@@ -1,0 +1,66 @@
+{
+  "code": "builtin_chart",
+  "name": "图表渲染",
+  "version": "1.0.0",
+  "vendor": "bizagent",
+  "description": "将结构化数据渲染为柱状图 / 折线图 / 饼图",
+  "packType": "declarative",
+  "apiVersion": "1",
+  "renderers": [
+    {
+      "type": "chart",
+      "entry": "",
+      "toolKeys": ["builtin_chart__generate_chart"]
+    }
+  ],
+  "tools": [
+    {
+      "code": "generate_chart",
+      "kind": "render",
+      "displayName": "生成图表",
+      "description": "生成图表用于界面展示。chartType 支持 bar(柱状图) / line(折线图) / pie(饼图)；labels 为分类标签；datasets 为系列数组，每个系列的 data 长度必须与 labels 一致。",
+      "renderType": "chart",
+      "riskLevel": "low",
+      "anonymousAllowed": true,
+      "binding": {
+        "renderType": "chart"
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "chartType": {
+            "type": "string",
+            "description": "图表类型: bar / line / pie",
+            "enum": ["bar", "line", "pie"]
+          },
+          "title": {
+            "type": "string",
+            "description": "图表标题"
+          },
+          "labels": {
+            "type": "array",
+            "description": "分类标签（X 轴或饼图扇区）",
+            "items": { "type": "string" }
+          },
+          "datasets": {
+            "type": "array",
+            "description": "数据系列数组",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": { "type": "string", "description": "系列名称" },
+                "data": {
+                  "type": "array",
+                  "description": "数值数组，长度需与 labels 一致",
+                  "items": { "type": "number" }
+                }
+              },
+              "required": ["label", "data"]
+            }
+          }
+        },
+        "required": ["chartType", "labels", "datasets"]
+      }
+    }
+  ]
+}

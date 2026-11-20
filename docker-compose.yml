@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bizagent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bizagent
+      POSTGRES_USER: bizagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bizagent}
+      TZ: Asia/Shanghai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 首次启动自动建表（已去除 panweidb 表空间子句）
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bizagent -d bizagent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: bizagent-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      BIZAGENT_DB_URL: jdbc:postgresql://postgres:5432/bizagent
+      BIZAGENT_DB_USERNAME: bizagent
+      BIZAGENT_DB_PASSWORD: ${POSTGRES_PASSWORD:-bizagent}
+      BIZAGENT_DB_DRIVER: org.postgresql.Driver
+      BIZAGENT_JWT_SECRET: ${BIZAGENT_JWT_SECRET:-}
+      # 必填：AES 主密钥（Base64/Hex 32 字节）。未配置时会在挂载目录生成，务必备份。
+      BIZAGENT_MASTER_KEY: ${BIZAGENT_MASTER_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      BIZAGENT_CORS_ORIGINS: ${BIZAGENT_CORS_ORIGINS:-}
+      BIZAGENT_OUTBOUND_HOSTS: ${BIZAGENT_OUTBOUND_HOSTS:-}
+      BIZAGENT_LOG_LEVEL: ${BIZAGENT_LOG_LEVEL:-INFO}
+      TZ: Asia/Shanghai
+    volumes:
+      # 持久化 master.key 与扩展包
+      - ./data:/app/data
+
+volumes:
+  pgdata:

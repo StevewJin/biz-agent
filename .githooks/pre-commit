@@ -1,0 +1,119 @@
+#!/usr/bin/env bash
+#
+# BizAgent 提交前密钥扫描（零依赖，仅用 git + grep）
+#
+# 安装：./scripts/install-git-hooks.sh
+# 临时跳过：git commit --no-verify（仅限确认无误时使用）
+#
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$ROOT" || exit 0
+
+STAGED="$(git diff --cached --name-only --diff-filter=ACM)"
+[ -z "$STAGED" ] && exit 0
+
+FAIL=0
+say() { printf '%s\n' "$@"; }
+
+# ---------- 1. 禁止提交的文件 ----------
+FORBIDDEN_PATHS=(
+  '(^|/)\.env$'
+  '(^|/)\.env\.(local|prod|production)$'
+  '(^|/)master\.key$'
+  '\.key$'
+  '\.pem$'
+  '\.p12$'
+  '\.pfx$'
+  '(^|/)id_rsa$'
+  '(^|/)id_ed25519$'
+  '(^|/)data/'
+  '\.DS_Store$'
+)
+
+for f in $STAGED; do
+  for p in "${FORBIDDEN_PATHS[@]}"; do
+    if printf '%s' "$f" | grep -qE "$p"; then
+      say "✗ 禁止提交敏感/运行时文件: $f"
+      FAIL=1
+      break
+    fi
+  done
+done
+
+# ---------- 2. 扫描本次新增的行 ----------
+ADDED="$(mktemp)"
+trap 'rm -f "$ADDED"' EXIT
+
+git diff --cached --no-color --unified=0 --no-ext-diff \
+  | awk '
+      /^\+\+\+ b\// { file = substr($0, 7); next }
+      /^\+\+\+/ { next }
+      /^\+/ { print file ":" substr($0, 2) }
+    ' > "$ADDED" 2>/dev/null
+
+if [ -s "$ADDED" ]; then
+  # 2.1 高置信度密钥样式
+  HIGH_CONF='sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|jdbc:[a-z0-9]+://[^/@[:space:]:]+:[^/@[:space:]]+@'
+
+  HITS="$(grep -nE "$HIGH_CONF" "$ADDED" || true)"
+  if [ -n "$HITS" ]; then
+    say "✗ 检测到疑似密钥/带口令的连接串（新增行）："
+    printf '%s\n' "$HITS" | sed 's/^/    /'
+    FAIL=1
+  fi
+
+  # 2.2 常见键值型凭证：只认「字面量」，跳过代码表达式与占位符
+  #     例：password = <带引号的字面量>      → 拦截
+  #         api-key: <16 位以上、含数字的串>  → 拦截
+  #         apiKey = encryptionService.decrypt(...) → 放行（方法调用，不是字面量）
+  HITS="$(awk '
+    # 判断值是否像真实密钥：带引号则允许任意字符，裸值只允许 token 类字符
+    function looks_like_secret(v, quoted,   low) {
+      gsub(/^[ \t]+|[ \t]+$/, "", v)
+      if (quoted) v = substr(v, 2, length(v) - 2)
+      low = tolower(v)
+      if (low ~ /\$\{/) return 0                       # ${ENV:默认值}
+      if (low ~ /(placeholder|example|sample|dummy|changeme|change-me|your[-_]|bizagent|localhost|deepseek|jdbc)/) return 0
+      if (low ~ /^<.*>$/) return 0                      # <your-key>
+      if (!quoted && v !~ /^[A-Za-z0-9+\/._=-]+$/) return 0  # 裸值含括号/引号/空格 → 代码表达式
+      # 带引号的字面量放宽长度阈值（短口令同样是硬编码凭证）
+      if (length(v) < (quoted ? 8 : 16)) return 0
+      if (v !~ /[0-9]/) return 0                        # 真实密钥几乎都带数字
+      if (v !~ /[A-Za-z]/) return 0
+      return 1
+    }
+    {
+      # 行格式为 path:content，从 key 后面开始取值，避开路径中的冒号
+      if (!match($0, /(password|passwd|pwd|secret|api[_-]?key|access[_-]?key|private[_-]?key|token)[ \t]*[:=]/)) next
+      rest = substr($0, RSTART + RLENGTH)
+      sub(/^[ \t]*/, "", rest)
+      quoted = 0
+      if (match(rest, /^("[^"]*"|'"'"'[^'"'"']*'"'"')/)) {
+        quoted = 1
+        value = substr(rest, RSTART, RLENGTH)
+      } else if (match(rest, /^[^ \t,;)]+/)) {
+        value = substr(rest, RSTART, RLENGTH)
+      } else {
+        next
+      }
+      if (looks_like_secret(value, quoted)) print $0
+    }' "$ADDED")"
+  
+  if [ -n "$HITS" ]; then
+    say "✗ 检测到疑似硬编码凭证（新增行）："
+    printf '%s\n' "$HITS" | sed 's/^/    /'
+    FAIL=1
+  fi
+fi
+
+if [ "$FAIL" -ne 0 ]; then
+  say ""
+  say "提交已被拦截。处理方式："
+  say "  1) 移除敏感值，改用环境变量（参考 .env.example）"
+  say "  2) 若确为误报，可执行 git commit --no-verify 跳过"
+  say "  3) 若凭证已写入历史，请先轮换凭证，再用 git filter-repo 清理历史"
+  exit 1
+fi
+
+exit 0

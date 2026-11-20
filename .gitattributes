@@ -1,0 +1,18 @@
+# 统一换行符：仓库内一律 LF，避免 Windows 检出后产生整文件 diff
+* text=auto eol=lf
+
+# 脚本保留可执行位
+*.sh text eol=lf
+mvnw text eol=lf
+
+# 二进制文件不做换行转换
+*.jar binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
+*.bpk binary
+
+# 语言统计：锁定第三方产物
+frontend/package-lock.json linguist-generated=true
+backend/.mvn/wrapper/maven-wrapper.jar binary

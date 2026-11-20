@@ -1,0 +1,63 @@
+{
+  "code": "chart_pro",
+  "name": "高级图表",
+  "version": "1.0.0",
+  "vendor": "bizagent",
+  "description": "提供雷达图渲染能力，演示扩展包的前端渲染器与 render 工具",
+  "packType": "declarative",
+  "apiVersion": "1",
+  "ui": {
+    "icon": "radar",
+    "color": "#7c3aed"
+  },
+  "renderers": [
+    {
+      "type": "chart_pro.radar",
+      "entry": "ui/entry.js",
+      "toolKeys": ["chart_pro__radar_chart"]
+    }
+  ],
+  "tools": [
+    {
+      "code": "radar_chart",
+      "kind": "render",
+      "displayName": "雷达图",
+      "description": "生成雷达图。labels 为维度名称，datasets 为系列数组（label + data），data 长度需与 labels 一致。适用于多维度能力/指标对比。",
+      "renderType": "chart_pro.radar",
+      "riskLevel": "low",
+      "anonymousAllowed": true,
+      "binding": {
+        "renderType": "chart_pro.radar",
+        "llmSummary": "雷达图已生成并展示在界面上，请用文字总结各维度差异，不要重复原始数据。"
+      },
+      "parameterSchema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "description": "图表标题" },
+          "labels": {
+            "type": "array",
+            "description": "维度名称",
+            "items": { "type": "string" }
+          },
+          "datasets": {
+            "type": "array",
+            "description": "数据系列",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": { "type": "string", "description": "系列名称" },
+                "data": {
+                  "type": "array",
+                  "description": "数值数组，长度与 labels 一致",
+                  "items": { "type": "number" }
+                }
+              },
+              "required": ["label", "data"]
+            }
+          }
+        },
+        "required": ["labels", "datasets"]
+      }
+    }
+  ]
+}
