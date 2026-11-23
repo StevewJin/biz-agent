@@ -1,32 +1,33 @@
-# 扩展包开发指南
+# Extension Pack Authoring Guide
 
-扩展包（Extension Pack）是 BizAgent 的能力载体：工具能力与前端渲染能力都由扩展包提供。
+**English** · [简体中文](extension-authoring.zh-CN.md)
 
-## 一、目录结构
+Extension packs are how BizAgent gains capabilities: both tools and frontend rendering come from extension packs.
+
+## 1. Layout
 
 ```
 my-pack/
-├── manifest.json          # 必需：清单
-├── lib/plugin.jar         # 可选：代码类工具（jar，仅管理员可导入）
-├── ui/entry.js            # 可选：前端渲染器（IIFE 构建产物）
-├── ui/entry.css           # 可选：样式
-└── resources/             # 可选：SQL 模板、图标等
+├── manifest.json          # required: manifest
+├── lib/plugin.jar         # optional: code tool (jar, admin-only import)
+├── ui/entry.js            # optional: frontend renderer (IIFE build output)
+├── ui/entry.css           # optional: styles
+└── resources/             # optional: SQL templates, icons, etc.
 ```
 
-打包为 zip 后，在「管理控制台 → 扩展包 → 导入扩展包」上传即可。
+Zip the folder and upload it via **Admin console → Extensions → Import extension**.
 
-> 权限说明：**声明式**扩展包（sql/http/render/export）任何用户都能导入，导入后归属自己（或当前团队），
-> 默认 `draft` 仅自己/团队可见；**含 jar 的代码包**等价服务端任意代码，仅管理员可导入。
+> Permissions: **declarative** packs (sql/http/render/export) can be imported by any user and are owned by the importer (or the current team), starting as `draft`. Packs containing a **jar** are equivalent to arbitrary server-side code and remain **admin-only**.
 
-## 二、manifest.json
+## 2. manifest.json
 
 ```json
 {
   "code": "sales_pack",
-  "name": "销售能力包",
+  "name": "Sales Pack",
   "version": "1.0.0",
   "vendor": "your-team",
-  "description": "销售域查询与图表",
+  "description": "Sales-domain queries and charts",
   "packType": "declarative",
   "apiVersion": "1",
   "ui": { "icon": "chart-bar", "color": "#6366f1" },
@@ -37,8 +38,8 @@ my-pack/
     {
       "code": "query",
       "kind": "sql",
-      "displayName": "销售查询",
-      "description": "查询销售数据，只读",
+      "displayName": "Sales query",
+      "description": "Read-only sales query",
       "binding": { "datasource": "ds_sales", "sql": "select * from orders where region = #{region}" },
       "renderType": "table",
       "riskLevel": "medium",
@@ -53,24 +54,24 @@ my-pack/
 }
 ```
 
-字段说明：
+Fields:
 
-| 字段 | 说明 |
+| Field | Description |
 |---|---|
-| `code` | 全局唯一，字母开头，仅字母数字下划线中划线 |
-| `version` | 语义化版本；同 code 导入新版本会替换旧版本 |
-| `packType` | `declarative`（声明式）/ `jar`（代码插件）/ `mixed` |
-| `apiVersion` | 当前只支持 `1` |
+| `code` | Globally unique; starts with a letter; letters, digits, `_`, `-` only |
+| `version` | Semantic version; importing the same `code` with a new version replaces the old one |
+| `packType` | `declarative` / `jar` (code plugin) / `mixed` |
+| `apiVersion` | Only `1` is supported |
 | `tools[].kind` | `sql` / `http` / `render` / `export` / `jar` |
-| `tools[].binding` | 声明式绑定配置，见下节 |
-| `tools[].renderType` | 前端渲染类型，对应 `renderers[].type` |
-| `tools[].riskLevel` | `low` / `medium` / `high`，影响默认工具注入 |
-| `tools[].anonymousAllowed` | 是否允许匿名（分享页）调用 |
-| `renderers[].entry` | 相对包根的前端入口 |
+| `tools[].binding` | Declarative binding, see below |
+| `tools[].renderType` | Frontend render type, matching `renderers[].type` |
+| `tools[].riskLevel` | `low` / `medium` / `high`; affects default tool injection |
+| `tools[].anonymousAllowed` | Whether anonymous (share page) calls are allowed |
+| `renderers[].entry` | Frontend entry, relative to the pack root |
 
-## 三、声明式工具（kind）
+## 3. Declarative Tool Kinds
 
-### 1. sql
+### 3.1 sql
 ```json
 "binding": {
   "datasource": "ds_sales",
@@ -78,32 +79,32 @@ my-pack/
   "action": "query"
 }
 ```
-- `action`：`query`（默认）/ `list_tables` / `describe_table`
-- 仅允许 `SELECT` / `WITH`，单语句；命名参数用 `#{name}`，禁止字符串拼接
-- `datasource` 可省略，由调用参数 `datasource` 传入（适合一个工具服务多个数据源）
-- 结果行数受数据源 `queryMaxRows` 限制
+- `action`: `query` (default) / `list_tables` / `describe_table`
+- Only `SELECT` / `WITH`, single statement; use `#{name}` for named parameters, never string concatenation
+- `datasource` may be omitted and supplied by the call parameter `datasource` (useful when one tool serves several datasources)
+- Result size is capped by the datasource `queryMaxRows`
 
-### 2. http
+### 3.2 http
 ```json
 "binding": { "endpoint": "crm_order" }
 ```
-- 只能调用「业务接口」中登记的 `apiCode`，禁止任意 URL
-- 平台注入鉴权信息，扩展包与模型都拿不到明文凭证
-- 出站地址受 `app.security.outbound` 策略约束（默认拦截内网/回环/云元数据）
+- Only registered `apiCode` values from "APIs" can be called; arbitrary URLs are rejected
+- The platform injects authentication; neither the pack nor the model ever sees plaintext credentials
+- Outbound targets are constrained by `app.security.outbound` (loopback / private / cloud metadata blocked by default)
 
-### 3. render
+### 3.3 render
 ```json
-"binding": { "renderType": "chart_pro.radar", "llmSummary": "图表已生成" }
+"binding": { "renderType": "chart_pro.radar", "llmSummary": "Chart generated" }
 ```
-- 无副作用：校验参数后直接把参数作为前端渲染 props
-- `parameterSchema.required` 会强制校验；数组/对象不会因 `asText()` 被误判为空
+- Side-effect free: parameters are validated and then passed straight to the frontend as render props
+- `parameterSchema.required` is enforced; arrays/objects are not misjudged as empty by `asText()` semantics
 
-### 4. export
-复用平台导出能力，生成 xlsx / csv 并返回下载卡片，`parameterSchema` 需包含 `filename/headers/rows`。
+### 3.4 export
+Reuses the platform export capability, producing xlsx / csv download cards. `parameterSchema` must include `filename/headers/rows`.
 
-## 四、代码插件（jar）
+## 4. Code Plugins (jar)
 
-仅管理员可导入。jar 中实现 `fun.jinwei.ai.biz.extension.api.ExtensionTool`：
+Admin-only import. Implement `fun.jinwei.ai.biz.extension.api.ExtensionTool`:
 
 ```java
 public class FunnelTool implements ExtensionTool {
@@ -112,25 +113,27 @@ public class FunnelTool implements ExtensionTool {
     public Mono<ExtensionResult> execute(JsonNode params, ExtensionContext ctx) {
         List<Map<String, Object>> rows = ctx.sql("ds_sales")
                 .query("select stage, count(*) c from opportunity group by stage", Map.of());
-        return Mono.just(ExtensionResult.ok("查询完成", "sales_pack.funnel", Map.of("rows", rows)));
+        return Mono.just(ExtensionResult.ok("done", "sales_pack.funnel", Map.of("rows", rows)));
     }
 }
 ```
 
-jar 内 `META-INF/bizagent-extension.json`：
+Declare implementations in `META-INF/bizagent-extension.json` inside the jar:
+
 ```json
 { "implementations": { "funnel": "com.example.FunnelTool" } }
 ```
-也可在 manifest 的工具 `binding.class` 中声明实现类。
 
-约束：
-- 只依赖 `extension-api`，**不要**打包该模块（平台已提供）
-- 不得依赖 Spring 容器、不得创建常驻线程、不得缓存平台对象（否则卸载时 ClassLoader 泄漏）
-- 平台为每个包创建独立 ClassLoader，卸载时关闭
+You may also declare the class in the manifest tool `binding.class`.
 
-## 五、前端渲染器
+Constraints:
+- Depend on `extension-api` only; **do not** bundle that module (the platform provides it)
+- Do not depend on the Spring container, do not spawn long-lived threads, do not cache platform objects (otherwise the ClassLoader leaks on uninstall)
+- Each pack gets its own ClassLoader, closed on uninstall
 
-入口为 IIFE 构建（rollup/vite `formats: ['iife']`），把 React / Recharts 作为 external，映射到宿主：
+## 5. Frontend Renderers
+
+Build the entry as IIFE (rollup/vite `formats: ['iife']`), marking React / Recharts as external and mapping them to the host:
 
 ```ts
 // vite.config.ts
@@ -148,7 +151,8 @@ build: {
 }
 ```
 
-入口注册：
+Register the entry:
+
 ```ts
 (window.__bizagentExt = window.__bizagentExt || {})['sales_pack'] = {
   activate() {
@@ -159,42 +163,42 @@ build: {
 };
 ```
 
-平台加载流程：读取 `/api/extensions/renderers` → 注入 `/ext-assets/{code}/{version}/ui/entry.js` → 调用 `activate()` → 注册渲染器。渲染失败或类型未注册时前端降级为 JSON 展示，不会白屏。
+Platform loading flow: read `/api/extensions/renderers` → inject `/ext-assets/{code}/{version}/ui/entry.js` → call `activate()` → register renderers. If rendering fails or the type is unregistered, the UI degrades to JSON output instead of a blank screen.
 
-## 六、归属与上架
+## 6. Ownership and Publishing
 
-导入时按当前数据上下文写入归属：
+Ownership is recorded at import time from the current data context:
 
-| 字段 | 说明 |
+| Field | Description |
 |---|---|
-| `owner_id` | 导入人；为空表示系统内置包 |
-| `team_id` | 团队空间导入时写入，个人空间为空 |
+| `owner_id` | Importer; `NULL` means a builtin pack |
+| `team_id` | Set when imported in a team context, `NULL` for personal |
 | `visibility` | `personal` / `team` / `public` |
 | `publish_status` | `draft` / `pending` / `approved` / `rejected` |
 
-上架流程：
+Publishing flow:
 
-1. 归属人（或团队管理者）在扩展包卡片点「申请上架」→ `pending`
-2. 管理员在「上架审核」通过或驳回（驳回需填原因，可见于卡片）
-3. 通过后 `public + approved`，全平台用户可见、可被技能包引用、可绑定到智能体
-4. 归属人可随时「撤回申请 / 下架」，退回个人或团队可见
+1. The owner (or a team manager) clicks "Request publish" on the pack card → `pending`
+2. An admin approves or rejects it in "Publish review" (rejection requires a reason, shown on the card)
+3. Once approved it becomes `public + approved`: visible platform-wide, referenceable by skills, bindable to agents
+4. The owner may withdraw/unpublish at any time, falling back to personal or team visibility
 
-可见性会同时约束三处：扩展包列表与详情、`/api/extensions/tools` 工具清单、`{{extension:code}}` 占位符解析；
-智能体绑定扩展包时也会校验当前用户是否可用该包。
+Visibility applies in three places: the pack list and detail, `/api/extensions/tools`, and `{{extension:code}}` placeholder resolution. Binding a pack to an agent also verifies that the current user can use it.
 
-## 七、安全与审计
+## 7. Security and Auditing
 
-- jar 包导入要求管理员；包 SHA-256 记录在 `ba_extensions.sha256`
-- 每次工具调用写入 `ba_tool_invocations`（tool_key / extension_code / user_id / conversation_id / status / duration_ms）
-- 声明式 SQL 只读、HTTP 仅白名单接口、导出写入受控目录
-- 工具超时由 `app.extension.tool-timeout-seconds` 控制
+- Jar import requires an administrator; the package SHA-256 is recorded in `ba_extensions.sha256`
+- Every tool invocation is written to `ba_tool_invocations` (tool_key / extension_code / user_id / conversation_id / status / duration_ms)
+- Declarative SQL is read-only, HTTP is limited to registered endpoints, exports go to a controlled directory
+- Tool timeouts are controlled by `app.extension.tool-timeout-seconds`
 
-## 八、本地调试
+## 8. Local Development
 
 ```bash
 cd extensions-samples/chart-pro
 npm install
-npm run build      # 产出 ui/entry.js
-npm run pack       # 产出 dist/chart_pro.bpk
+npm run build      # produces ui/entry.js
+npm run pack       # produces dist/chart_pro.bpk
 ```
-然后在「扩展包」页面导入 `dist/chart_pro.bpk`。
+
+Then import `dist/chart_pro.bpk` from the Extensions page.

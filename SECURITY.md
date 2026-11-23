@@ -1,91 +1,93 @@
-# 安全策略
+# Security Policy
 
-## 报告漏洞
+**English** · [简体中文](SECURITY.zh-CN.md)
 
-**请不要通过公开 Issue 披露安全问题。**
+## Reporting a Vulnerability
 
-请通过以下方式私下报告：
+**Please do not disclose security issues through public issues.**
 
-- 邮件：steve.w.jin@gmail.com
-- 或在 GitHub 仓库的 **Security → Report a vulnerability** 中提交私有报告
+Report privately via:
 
-报告请尽量包含：
+- Email: steve.w.jin@gmail.com
+- Or GitHub → **Security → Report a vulnerability** (private advisory)
 
-1. 受影响的版本 / 提交号
-2. 漏洞类型与影响（如越权、SSRF、凭证泄露、任意代码执行）
-3. 复现步骤或最小 PoC
-4. 你评估的严重程度
+Please include:
 
-我们会在 **5 个工作日内**确认收到，并在修复发布后致谢（如需匿名请说明）。
+1. Affected version / commit
+2. Vulnerability type and impact (privilege escalation, SSRF, credential exposure, RCE, …)
+3. Reproduction steps or a minimal PoC
+4. Your severity assessment
 
-## 支持范围
+We acknowledge reports within **5 business days** and credit reporters after a fix ships (tell us if you prefer to stay anonymous).
 
-| 版本 | 安全更新 |
+## Supported Versions
+
+| Version | Security updates |
 |---|---|
-| `main` 分支 | ✅ |
+| `main` branch | ✅ |
 
-## 仓库与提交安全
+## Repository and Commit Security
 
-本仓库**不包含任何真实凭证**：数据库连接、LLM API Key、JWT 密钥、AES 主密钥全部通过环境变量注入（见 `.env.example`），`.env`、`data/`、`*.key` 均已被 `.gitignore` 排除。
+This repository contains **no real credentials**: database connections, LLM API keys, the JWT secret, and the AES master key are all injected through environment variables (see `.env.example`). `.env`, `data/`, and `*.key` are excluded by `.gitignore`.
 
-三层防护：
+Three layers of protection:
 
-| 层级 | 机制 | 位置 |
+| Layer | Mechanism | Location |
 |---|---|---|
-| 交付时 | 启动守卫：JWT 仍为仓库默认值时，`prod` profile 直接拒绝启动；本次启动新生成 AES 主密钥同样拒绝启动（开发环境仅打印醒目告警） | `config/StartupSecurityGuard` |
-| 提交前 | 密钥扫描：拦截 `.env` / `*.key` / `data/` 等敏感文件与 `sk-*`、AWS/GitHub Token、私钥、带口令的 JDBC 串 | `.githooks/pre-commit` |
-| 托管平台 | Secret scanning + Push protection，push 阶段再拦一次 | GitHub 仓库设置 |
+| Runtime | Startup guard: with the default JWT secret, the `prod` profile refuses to boot; a freshly generated AES master key is also rejected in `prod` (dev only logs a loud warning) | `config/StartupSecurityGuard` |
+| Pre-commit | Secret scan: blocks `.env` / `*.key` / `data/` and patterns such as `sk-*`, AWS/GitHub tokens, private keys, JDBC URLs with inline credentials | `.githooks/pre-commit` |
+| Hosting platform | Secret scanning + push protection, one more gate at push time | GitHub repository settings |
 
-首次克隆后启用本地检查：
+Enable the local check after cloning:
 
 ```bash
 ./scripts/install-git-hooks.sh
 ```
 
-GitHub 仓库创建后建议开启（Settings → Code security）：
+Recommended GitHub settings (Settings → Code security):
 
-- **Secret scanning**：自动识别已提交的密钥并告警
-- **Push protection**：在 push 阶段直接拦截已知格式的密钥
-- **Dependabot alerts**：依赖漏洞提醒
+- **Secret scanning**: detect committed secrets automatically
+- **Push protection**: block known secret formats during push
+- **Dependabot alerts**: dependency vulnerability notices
 
-### 凭证误提交后的处置顺序
+### If a credential is committed by accident
 
-1. **先轮换**：到对应平台吊销并重建（LLM API Key、数据库口令、JWT 密钥），同步更新部署环境变量
-2. 再清理历史：`git filter-repo --path <file> --invert-paths` 后强制推送
-3. 通知协作者重新克隆（旧克隆仍带历史）
-4. 复盘使用痕迹：API 用量、数据库登录日志、异常请求
+1. **Rotate first**: revoke and recreate the credential (LLM API key, database password, JWT secret) and update the deployment environment
+2. Then clean history: `git filter-repo --path <file> --invert-paths`, followed by a force push
+3. Ask collaborators to re-clone (existing clones still carry history)
+4. Review usage: API consumption, database login logs, anomalous requests
 
-> 顺序不能反：历史清理完，泄漏的密钥依然有效。另需注意 fork、镜像与搜索引擎缓存无法回收，这也是「先轮换」的原因。
+> The order matters: cleaning history does not invalidate a leaked secret. Note that forks, mirrors, and search engine caches cannot be recalled — that is why rotation comes first.
 
-## 部署方需自行承担的安全责任
+## Deployer Responsibilities
 
-BizAgent 是一个可执行任意扩展包 + 直连业务数据库的平台，**部署方必须**：
+BizAgent executes arbitrary extension packs and connects directly to business databases. **Deployers must**:
 
-1. **固定密钥**
-   - 设置 `BIZAGENT_JWT_SECRET`（Base64，解码后 ≥ 64 字节）
-   - 设置 `BIZAGENT_MASTER_KEY` 并离线备份；丢失后库内加密凭证不可解
-   - 不要使用 `application.yml` 中的开发默认值上线
+1. **Pin secrets**
+   - Set `BIZAGENT_JWT_SECRET` (Base64, ≥ 64 bytes after decoding)
+   - Set `BIZAGENT_MASTER_KEY` and back it up offline; losing it makes encrypted credentials unrecoverable
+   - Never ship the development defaults from `application.yml`
 
-2. **限制跨域与出站**
-   - `BIZAGENT_CORS_ORIGINS` 只填可信前端域名，不要使用通配符
-   - 默认禁止访问内网与回环地址；确需访问内网接口时用 `BIZAGENT_OUTBOUND_HOSTS` 精确放行
-   - 云环境务必保持元数据地址（`169.254.169.254`）不可达
+2. **Restrict CORS and egress**
+   - Put only trusted frontend origins in `BIZAGENT_CORS_ORIGINS`; never use a wildcard
+   - Private and loopback addresses are blocked by default; allow specific hosts with `BIZAGENT_OUTBOUND_HOSTS`
+   - In cloud environments keep the metadata address (`169.254.169.254`) unreachable
 
-3. **审计扩展包**
-   - jar 代码插件拥有数据库访问与出站请求能力，等价于服务端任意代码
-   - 只导入可信来源；导入前检查 `manifest.json`、工具声明与依赖
-   - 生产环境如需收紧，可关闭 `app.extension.allow-code-packs`
+3. **Audit extension packs**
+   - Jar plugins have database access and outbound request capability — equivalent to arbitrary server-side code
+   - Import only trusted sources; review `manifest.json`, tool declarations, and dependencies
+   - To tighten production further, disable `app.extension.allow-code-packs`
 
-4. **最小权限数据库账号**
-   - 业务数据源账号应只读，且只授权必要的 schema / 表
-   - 平台侧只读校验无法替代数据库层权限
+4. **Least-privilege database accounts**
+   - Business datasource accounts should be read-only and scoped to the necessary schemas/tables
+   - The platform-side read-only check cannot replace database-level permissions
 
-5. **边界防护**
-   - 在公网部署时置于反向代理之后，启用 HTTPS、限流与访问日志
-   - 不要向公网暴露 PostgreSQL 端口与 `/actuator` 之外的端点
+5. **Perimeter protection**
+   - Behind a reverse proxy with HTTPS, rate limiting, and access logs when exposed publicly
+   - Do not expose the PostgreSQL port; only `/actuator` endpoints as needed
 
-## 已知设计边界
+## Known Design Boundaries
 
-- 声明式 SQL 工具只允许单条 `SELECT` / `WITH` 语句，但**不限制结果语义**；敏感数据需靠数据库权限控制
-- `render` 工具无副作用，但扩展包前端代码运行在宿主页面上下文，可按需 CSP 收紧
-- 工具审计表 `ba_tool_invocations` 记录参数摘要，请按数据合规要求设置保留周期
+- Declarative SQL tools allow a single `SELECT` / `WITH` statement, but **do not constrain what the query returns**; sensitive data must be protected by database permissions
+- `render` tools are side-effect free, but extension frontend code runs in the host page context — tighten with CSP if required
+- The audit table `ba_tool_invocations` stores parameter digests; set a retention period that matches your compliance requirements

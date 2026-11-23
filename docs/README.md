@@ -1,20 +1,22 @@
-# BizAgent 文档索引
+# Documentation Index
 
-| 文档 | 面向 | 内容 |
+**English** · [简体中文](README.zh-CN.md)
+
+| Document | Audience | Contents |
 |---|---|---|
-| [../README.md](../README.md) | 所有人 | 项目简介、架构、快速开始、环境变量 |
-| [extension-authoring.md](extension-authoring.md) | 扩展包开发者 | `manifest.json` 规范、`sql`/`http`/`render`/`export` 四类声明式工具、jar 代码插件、前端渲染器 |
-| [skill-authoring-guide.md](skill-authoring-guide.md) | 业务配置人员 | 技能包编写：提示词占位符、资源引用、触发方式、表结构注入模式 |
-| [database-setup.md](database-setup.md) | 运维 / 部署 | 建表脚本、环境变量、容器化与容量规划 |
+| [../README.md](../README.md) | Everyone | Overview, architecture, quick start, environment variables |
+| [extension-authoring.md](extension-authoring.md) | Extension developers | `manifest.json` schema, `sql`/`http`/`render`/`export` declarative tools, jar plugins, frontend renderers |
+| [skill-authoring-guide.md](skill-authoring-guide.md) | Business configurators | Writing skill packs: prompt placeholders, resource references, trigger modes, schema injection |
+| [database-setup.md](database-setup.md) | Ops / deployment | Schema script, environment variables, containers, capacity planning |
 
-## 相关示例
+## Related Samples
 
-- [../extensions-samples/chart-pro](../extensions-samples/chart-pro)：可直接导入的扩展包示例（前端渲染器 + 打包脚本）
-- [market-material-skills.sql](market-material-skills.sql)：3 个市场物料相关技能包的示例数据，可直接导入体验占位符与工具白名单
+- [../extensions-samples/chart-pro](../extensions-samples/chart-pro): a ready-to-import extension pack (frontend renderer + pack script)
+- [market-material-skills.sql](market-material-skills.sql): sample data for three market-material skill packs; import it to try placeholders and tool whitelists
 
-## 阅读顺序建议
+## Suggested Reading Order
 
-1. 先看根 [README](../README.md) 了解「Agent Loop + 技能包 + 扩展包」三段式设计
-2. 需要接入自己的业务系统 → [database-setup.md](database-setup.md)
-3. 需要写技能提示词 → [skill-authoring-guide.md](skill-authoring-guide.md)
-4. 需要新增工具或前端图表 → [extension-authoring.md](extension-authoring.md)
+1. Start with the root [README](../README.md) to understand the "Agent Loop + skill packs + extension packs" design
+2. Connecting your own business systems → [database-setup.md](database-setup.md)
+3. Writing skill prompts → [skill-authoring-guide.md](skill-authoring-guide.md)
+4. Adding tools or frontend charts → [extension-authoring.md](extension-authoring.md)

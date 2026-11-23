@@ -1,58 +1,60 @@
-# BizAgent · 业务执行智能体平台
+# BizAgent · Business Execution Agent Platform
 
-一个面向企业业务场景的轻量级 AI Agent 平台：**一个 Agent Loop + 技能包系统 + 扩展包系统**。
+**English** · [简体中文](README.zh-CN.md)
 
-平台本身不硬编码任何业务能力。所有「能做什么」都由**技能包**（提示词 + 资源引用）和**扩展包**（工具实现 + 前端渲染器）在运行时注入，因此可以把一个通用 Agent 快速改造成懂你业务的数据分析助手、报表助手或流程助手。
+A lightweight AI agent platform for enterprise business scenarios: **one Agent Loop + skill packs + extension packs**.
 
-许可证：[MIT](LICENSE)
+The platform hard-codes no business capability. Everything an agent can do is injected at runtime by **skill packs** (prompts + resource references) and **extension packs** (tool implementations + frontend renderers). That makes it possible to turn a generic agent into a data analyst, reporting assistant, or workflow assistant that actually understands your business.
+
+License: [MIT](LICENSE)
 
 ---
 
-## 核心特性
+## Features
 
 **Agent Loop**
-- 单一推理循环：规划 → 工具调用 → 结果回填 → 继续推理，最多 `app.agent.max-turns` 轮
-- 流式输出（SSE over STOMP WebSocket），思考链与工具调用过程实时可见
-- 每轮运行由 `AgentRunPlanner` 生成 `AgentRunPlan`，明确本轮可用的系统提示词、工具白名单与数据源/接口作用域
-- 匿名分享链接运行，自动剔除含受限工具的技能
+- Single reasoning loop: plan → tool call → feed results back → continue, up to `app.agent.max-turns` rounds
+- Streaming output (SSE over STOMP WebSocket); thinking chain and tool calls are visible in real time
+- `AgentRunPlanner` produces an `AgentRunPlan` per run, pinning the system prompt, tool whitelist, and datasource/API scope
+- Anonymous share links are supported, automatically dropping skills that contain restricted tools
 
-**技能包（Skill Pack）**
-- 技能 = Markdown 提示词 + 资源引用 + 工具白名单
-- 提示词支持占位符展开：`{{datasource:code}}`、`{{api:code}}`、`{{extension:code}}`、`{{tool:key}}`
-- 表结构注入支持 `inline`（内联字段）与 `lazy`（仅表名，按需查询）两种模式，控制 token 消耗
-- 触发方式：`auto`（模型自主）/ `keyword`（关键词命中）/ `manual`（仅手动）
-- 归属控制：个人创建的技能仅本人与管理员可改
+**Skill Packs**
+- A skill is a Markdown prompt + resource references + a tool whitelist
+- Prompts support placeholder expansion: `{{datasource:code}}`, `{{api:code}}`, `{{extension:code}}`, `{{tool:key}}`
+- Schema injection supports `inline` (columns inline) and `lazy` (table names only, fetched on demand) to control token usage
+- Trigger modes: `auto` (model decides), `keyword` (keyword match), `manual`
+- Ownership: user-created skills are editable only by the owner and administrators
 
-**扩展包（Extension Pack）**
-- 统一以 zip 包（`.bpk`）导入，支持版本升级与卸载
-- 四类**声明式工具**，无需写代码：
-  - `sql`：只读查询，命名参数 `#{name}`，自动 `search_path`、行数与超时限制
-  - `http`：只能调用「业务接口」中登记的端点，鉴权由平台注入，模型与扩展包都拿不到明文凭证
-  - `render`：无副作用，直接把参数作为前端渲染 props
-  - `export`：生成 xlsx / csv 下载卡片
-- **代码插件**：jar 内实现 `ExtensionTool` SPI，独立 ClassLoader 加载，卸载即回收
-- **前端扩展**：预编译 IIFE 模块动态加载，共享宿主 React / Recharts，可注册任意 `_render` 类型（图表、看板、自定义视图等）
+**Extension Packs**
+- Imported as a single zip (`.bpk`); supports version upgrade and uninstall
+- Four **declarative tool** kinds, no code required:
+  - `sql`: read-only queries, named parameters `#{name}`, automatic `search_path`, row and timeout limits
+  - `http`: only calls endpoints registered in "APIs"; credentials are injected by the platform, never exposed to the model or the pack
+  - `render`: side-effect free, parameters become frontend render props
+  - `export`: produces xlsx / csv download cards
+- **Code plugins**: implement the `ExtensionTool` SPI inside a jar, loaded in an isolated ClassLoader and released on uninstall
+- **Frontend extensions**: prebuilt IIFE modules loaded dynamically, sharing host React / Recharts, able to register any `_render` type (charts, boards, custom views)
 
-**业务系统接入**
-- 数据源管理：PostgreSQL / MySQL / Oracle 等，支持运行时加载外部 JDBC 驱动 jar；表结构自动内省与缓存
-- 接口管理：登记业务系统 API，支持参数模板、鉴权配置加密存储、连通性测试
-- 所有 SQL / HTTP 调用落审计表 `ba_tool_invocations`（工具、用户、会话、耗时、状态）
+**Business System Integration**
+- Datasource management: PostgreSQL / MySQL / Oracle, runtime loading of external JDBC driver jars, automatic schema introspection and caching
+- API management: register business APIs with parameter templates, encrypted auth config, connectivity test
+- Every SQL / HTTP call is audited in `ba_tool_invocations` (tool, user, conversation, duration, status)
 
-**安全基线**
-- JWT 认证 + 角色/归属校验（`AccessGuard`）
-- 凭证以 AES 加密落库，主密钥可持久化或由环境变量固定
-- SSRF 防护：拦截回环地址、内网地址、云元数据端点，内网白名单显式放行
-- 工具白名单默认只注入低风险工具；匿名会话禁止调用受限工具
-- 出站 URL 参数编码、导出目录受控、日志默认不落原始请求体
+**Security Baseline**
+- JWT authentication plus role/ownership checks (`AccessGuard`, `TeamAccess`)
+- Credentials encrypted with AES at rest; master key persisted locally or pinned via env var
+- SSRF protection: blocks loopback, private networks, and cloud metadata endpoints; private hosts must be allow-listed
+- Tool whitelist injects only low-risk tools by default; anonymous sessions cannot call restricted tools
+- Outbound URL parameter encoding, controlled export directory, raw request bodies never logged by default
 
 ---
 
-## 架构
+## Architecture
 
 ```
                     ┌──────────────────────────────┐
-   浏览器            │  React 19 + Vite + Tailwind  │
-   (聊天 / 管理台)    │  扩展渲染器运行时              │
+   Browser          │  React 19 + Vite + Tailwind  │
+   (chat / admin)   │  extension renderer runtime  │
                     └───────────┬──────────────────┘
                       REST / WS │ (STOMP)
                     ┌───────────▼──────────────────┐
@@ -61,227 +63,227 @@
                     │  AgentLoop ── AgentRunPlanner│
                     │      │              │        │
                     │      │        SkillRegistry   │
-                    │      │        (占位符 → 提示词) │
+                    │      │        (placeholders)  │
                     │      ▼              │        │
                     │  ToolCatalog ◄──────┘        │
                     │      │                       │
                     │  ExtensionRuntime            │
-                    │   ├─ SqlToolEngine  ─┐       │
-                    │   ├─ HttpToolEngine ─┤       │
-                    │   ├─ RenderToolEngine│       │
-                    │   └─ ExportToolEngine│       │
-                    └──────┬───────────────┴───────┘
+                    │   ├─ SqlToolEngine   ─┐      │
+                    │   ├─ HttpToolEngine  ─┤      │
+                    │   ├─ RenderToolEngine│      │
+                    │   └─ ExportToolEngine│      │
+                    └──────┬───────────────┴──────┘
                            │
               ┌────────────┴─────────────┐
               ▼                          ▼
-      PostgreSQL (bi schema)      业务系统 DB / API
+      PostgreSQL (bi schema)      business DB / API
 ```
 
-- **`extension-api`**：扩展包 SPI，代码插件只依赖它
-- **`backend`**：Agent 编排、技能包、扩展包运行时、数据源/接口管理、认证授权
-- **`frontend`**：对话界面 + 管理控制台 + 扩展渲染器宿主
+- **`extension-api`**: extension SPI; code plugins depend on this module only
+- **`backend`**: agent orchestration, skill packs, extension runtime, datasource/API management, auth
+- **`frontend`**: chat UI + admin console + extension renderer host
 
 ---
 
-## 技术栈
+## Tech Stack
 
-| 层 | 选型 |
+| Layer | Choice |
 |---|---|
-| 后端 | Spring Boot 3.3、Spring Web / WebFlux、Spring Data JPA、Spring Security、Spring WebSocket（STOMP）、JJWT |
-| 数据库 | PostgreSQL 15+（schema 默认 `bi`）、Spring Data JPA、HikariCP |
-| 前端 | React 19、TypeScript、Vite、Tailwind CSS、Zustand、Recharts、react-markdown |
-| 构建 | Maven 多模块（`extension-api` + `backend`）、npm |
-| 运行 | 单体 fat jar（前端产物并入静态资源）或 Docker Compose |
+| Backend | Spring Boot 3.3, Spring Web / WebFlux, Spring Data JPA, Spring Security, Spring WebSocket (STOMP), JJWT |
+| Database | PostgreSQL 15+ (schema `bi` by default), Spring Data JPA, HikariCP |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS, Zustand, Recharts, react-markdown |
+| Build | Maven multi-module (`extension-api` + `backend`), npm |
+| Runtime | Single fat jar (frontend bundled as static assets) or Docker Compose |
 
 ---
 
-## 目录结构
+## Project Layout
 
 ```
 .
-├── extension-api/              # 扩展包 SPI（ExtensionTool / ExtensionContext / SqlExecutor / HttpExecutor）
+├── extension-api/              # extension SPI (ExtensionTool / ExtensionContext / SqlExecutor / HttpExecutor)
 ├── backend/
-│   ├── schema.sql              # 完整建表脚本（PostgreSQL）
+│   ├── schema.sql              # complete DDL (PostgreSQL)
 │   └── src/main/
 │       ├── java/fun/jinwei/ai/biz/
-│       │   ├── agent/          # AgentLoop、AgentRunPlanner
-│       │   ├── extension/      # 运行时、安装器、声明式引擎、内置扩展包清单
-│       │   ├── service/        # 技能包、数据源、接口、会话、LLM
-│       │   ├── controller/     # REST 接口
-│       │   ├── security/       # AccessGuard、OutboundPolicy
-│       │   └── entity/         # JPA 实体
+│       │   ├── agent/          # AgentLoop, AgentRunPlanner
+│       │   ├── extension/      # runtime, installer, declarative engines, builtin manifests
+│       │   ├── service/        # skills, datasources, APIs, conversations, LLM
+│       │   ├── controller/     # REST endpoints
+│       │   ├── security/       # AccessGuard, TeamAccess, ResourceVisibility, OutboundPolicy
+│       │   └── entity/         # JPA entities
 │       └── resources/
 │           ├── application.yml
-│           └── extensions/builtin/   # 内置扩展包（db / http / chart / export）
+│           └── extensions/builtin/   # builtin packs (db / http / chart / export)
 ├── frontend/
 │   └── src/
-│       ├── extensions/         # 前端扩展宿主与渲染器注册表
-│       ├── components/         # 聊天组件 + 管理端 UI 组件库
-│       └── pages/              # 对话、技能市场、管理控制台
+│       ├── extensions/         # frontend extension host and renderer registry
+│       ├── components/         # chat components + admin UI kit
+│       └── pages/              # chat, skill marketplace, admin console
 ├── extensions-samples/
-│   └── chart-pro/              # 扩展示例包（前端渲染器 + 打包脚本）
-├── docker/postgres/init/       # 容器首次启动自动建表
-├── docs/                       # 开发文档
+│   └── chart-pro/              # sample extension pack (frontend renderer + pack script)
+├── docker/postgres/init/       # schema executed on first container start
+├── docs/                       # documentation
 ├── Dockerfile / docker-compose.yml
-├── build.sh                    # 一键打包（前端产物并入 fat jar）
-└── start.sh                    # 启动脚本（读取 .env）
+├── build.sh                    # one-shot build (frontend bundled into the fat jar)
+└── start.sh                    # launcher (reads .env)
 ```
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 前置条件
+### Prerequisites
 
-- JDK 22+（构建与运行）
+- JDK 22+ (build and runtime)
 - Node.js 20+
 - PostgreSQL 15+
 
-### 方式一：Docker Compose（最快）
+### Option 1: Docker Compose (fastest)
 
 ```bash
-cp .env.example .env      # 填入 DEEPSEEK_API_KEY 等
+cp .env.example .env      # fill in DEEPSEEK_API_KEY, etc.
 docker compose up -d --build
 ```
 
-访问 <http://localhost:8080>。`postgres` 容器首次启动会自动执行 `docker/postgres/init/01-schema.sql` 建表。
+Open <http://localhost:8080>. The `postgres` container executes `docker/postgres/init/01-schema.sql` on first start.
 
-### 方式二：本地开发
+### Option 2: Local development
 
 ```bash
-# 1. 建表
+# 1. Create schema
 createdb bizagent
 psql -d bizagent -f backend/schema.sql
 
-# 2. 后端
+# 2. Backend
 export BIZAGENT_DB_URL=jdbc:postgresql://localhost:5432/bizagent
 export BIZAGENT_DB_USERNAME=postgres
 export BIZAGENT_DB_PASSWORD=postgres
 export DEEPSEEK_API_KEY=sk-xxxx
 ./backend/mvnw -f pom.xml -pl backend -am spring-boot:run
 
-# 3. 前端（另开终端）
-cd frontend && npm install && npm run dev    # http://localhost:5173，/api 与 /ws 已代理到 8080
+# 3. Frontend (separate terminal)
+cd frontend && npm install && npm run dev    # http://localhost:5173, /api and /ws proxied to 8080
 ```
 
-### 生产打包（前端并入单个 jar）
+### Production build (frontend bundled into one jar)
 
 ```bash
-./build.sh          # 产物 backend/target/backend-1.0.0.jar
-./start.sh          # 读取项目根目录 .env
+./build.sh          # output: backend/target/backend-1.0.0.jar
+./start.sh          # reads .env from the project root
 ```
 
-### 首个管理员
+### First administrator
 
-系统不内置账号，注册后提升角色，重新登录生效：
+There is no built-in account. Register, then promote the account and sign in again:
 
 ```sql
 UPDATE bi.ba_users SET role_type = 'admin' WHERE username = 'your-name';
 ```
 
-管理员可导入 jar 代码插件、修改系统内置技能包、管理他人创建的数据源/接口/智能体。
+Administrators can import jar plugins, edit builtin skill packs, and manage datasources / APIs / agents created by others.
 
 ---
 
-## 配置
+## Configuration
 
-所有配置均可用环境变量覆盖，完整清单见 [`.env.example`](.env.example)。
+Every setting can be overridden by environment variables. The full list lives in [`.env.example`](.env.example).
 
-| 变量 | 说明 | 默认值 |
+| Variable | Description | Default |
 |---|---|---|
-| `BIZAGENT_DB_URL` / `_USERNAME` / `_PASSWORD` / `_DRIVER` | 平台主库连接 | `jdbc:postgresql://localhost:5432/bizagent` |
-| `BIZAGENT_JWT_SECRET` | JWT 签名密钥，Base64，解码后 ≥ 64 字节 | 内置开发默认值（生产必改） |
-| `BIZAGENT_MASTER_KEY` | AES 主密钥，加密 LLM Key / 数据源密码 / 接口鉴权 | 留空则生成 `data/master.key` |
-| `BIZAGENT_CORS_ORIGINS` | 允许跨域的前端地址，逗号分隔 | 空（仅同源） |
-| `BIZAGENT_OUTBOUND_HOSTS` | 接口调用放行的内网主机白名单 | 空（内网全禁） |
-| `BIZAGENT_DATA_DIR` / `BIZAGENT_EXT_HOME` / `BIZAGENT_DRIVER_DIR` | 数据 / 扩展包 / 外部驱动目录 | `./data/**` |
-| `APP_EXPORT_DIR` | 导出文件目录（不可写时回退临时目录） | `./data/exports` |
-| `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL` | 默认 LLM 供应商（任意 OpenAI 兼容端点） | `https://api.deepseek.com` / `deepseek-flash` |
-| `BIZAGENT_LOG_LEVEL` / `BIZAGENT_LOG_RAW_PAYLOAD` | 应用日志级别、是否打印完整 LLM 报文 | `INFO` / `false` |
+| `BIZAGENT_DB_URL` / `_USERNAME` / `_PASSWORD` / `_DRIVER` | Platform database connection | `jdbc:postgresql://localhost:5432/bizagent` |
+| `BIZAGENT_JWT_SECRET` | JWT signing key, Base64, ≥ 64 bytes after decoding | built-in dev default (must change in production) |
+| `BIZAGENT_MASTER_KEY` | AES master key for LLM keys / datasource passwords / API auth | empty → generates `data/master.key` |
+| `BIZAGENT_CORS_ORIGINS` | Allowed frontend origins, comma separated | empty (same origin only) |
+| `BIZAGENT_OUTBOUND_HOSTS` | Allow-list of private hosts reachable by API tools | empty (all private hosts blocked) |
+| `BIZAGENT_DATA_DIR` / `BIZAGENT_EXT_HOME` / `BIZAGENT_DRIVER_DIR` | Data / extension / external driver directories | `./data/**` |
+| `APP_EXPORT_DIR` | Export directory (falls back to temp dir when not writable) | `./data/exports` |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL` | Default LLM provider (any OpenAI-compatible endpoint) | `https://api.deepseek.com` / `deepseek-flash` |
+| `BIZAGENT_LOG_LEVEL` / `BIZAGENT_LOG_RAW_PAYLOAD` | Log level, whether to dump raw LLM payloads | `INFO` / `false` |
 
-> `BIZAGENT_MASTER_KEY` 与 `data/master.key` 必须离线备份。主密钥丢失后，库内所有加密凭证不可解，只能重新录入。
+> `BIZAGENT_MASTER_KEY` (and `data/master.key`) must be backed up offline. Losing the master key makes every encrypted credential in the database unrecoverable.
 
 ---
 
-## 权限模型
+## Permission Model
 
-平台按 SaaS 常见三层角色划分，**每一个功能模块都有对应的权限校验**：
+Three roles, SaaS style, with **every module enforcing its own checks**:
 
-| 模块 | 系统管理员 | 团队负责人 / 团队管理员 | 普通成员 |
+| Module | System admin | Team owner / team admin | Regular member |
 |---|---|---|---|
-| LLM 供应商 | 增删改查 | — | — |
-| 扩展包 | 全部 + 上架审核 | 本人/本团队创建的包可导入、启停、卸载、申请上架 | 同左（含 jar 的包仅管理员可导入） |
-| 技能包 | 全部 + 上架审核 | 本人/本团队创建的技能可增删改、申请上架 | 同左 |
-| 数据源 / 接口 | 全部 | 本人 + 本团队 | 本人 + 本团队（只读） |
-| 智能体 | 全部 | 本人 + 本团队（可改本团队） | 本人 + 本团队（只读） |
-| 团队 | 全部 | 本人负责的团队可改成员 | 仅查看所在团队 |
-| 会话记录 | 全平台 | 本人 + 本团队 | 仅本人 |
-| 导出文件 | 全部 | 本人会话 / 本人智能体会话 | 本人会话 |
-| 测试对话 | ✅ | ✅ | ✅ |
+| LLM providers | full access | — | — |
+| Extension packs | full access + publish review | import / enable / disable / uninstall / request publish for own or team packs | same (jar packs: admins only) |
+| Skill packs | full access + publish review | create / edit / delete / request publish for own or team skills | same |
+| Datasources / APIs | full access | own + team | own + team (read-only) |
+| Agents | full access | own + team (editable) | own + team (read-only) |
+| Teams | full access | manage members of owned teams | view joined teams |
+| Conversation records | platform-wide | own + team | own only |
+| Export files | full access | own conversations / own agents' conversations | own conversations |
+| Test chat | ✅ | ✅ | ✅ |
 
-### 归属与上架（技能包 / 扩展包）
+### Ownership and publishing (skills / extensions)
 
-两者共用一套模型：`owner_id` + `team_id` + `visibility`(personal/team/public) + `publish_status`(draft/pending/approved/rejected)。
+Both share one model: `owner_id` + `team_id` + `visibility` (personal/team/public) + `publish_status` (draft/pending/approved/rejected).
 
-| 状态 | 含义 | 谁可见 |
+| Status | Meaning | Visible to |
 |---|---|---|
-| `draft` | 未上架 | 归属人、团队管理者、系统管理员 |
-| `pending` | 已提交上架，等审核 | 同上（管理员在「上架审核」处理） |
-| `approved` | 审核通过 | **全平台所有用户** |
-| `rejected` | 审核驳回 | 归属人可见驳回原因，可修改后重新提交 |
+| `draft` | not published | owner, team managers, system admins |
+| `pending` | submitted, awaiting review | same as above (admins handle it in "Publish review") |
+| `approved` | approved | **everyone on the platform** |
+| `rejected` | rejected | owner sees the reason and can resubmit |
 
-流程：归属人「申请上架」→ 管理员在「上架审核」通过/驳回（驳回需填原因）→ 归属人可随时「撤回/下架」。
-`owner_id` 为空的系统内置包属于平台能力，全平台可用且仅管理员可改。
+Flow: owner requests publish → admin approves or rejects (rejection requires a reason) → owner may withdraw / unpublish at any time.
+Packs with `owner_id = NULL` are built in: available platform-wide and editable only by admins.
 
-实现要点：
+Implementation notes:
 
-- 所有列表接口都按归属过滤（`owner_id` / `team_id`），不会返回无权数据
-- 扩展包：声明式包所有用户可导入；含 jar 代码的包等价服务端任意代码，仅管理员可导入
-- 工具清单、`{{extension:code}}` 占位符、智能体绑定扩展包三处都会校验扩展包可见性
-- 团队上下文（`X-Data-Context`）会校验成员身份，**伪造团队 ID 直接 403**
-- 前端通过 `GET /api/capabilities` 获取 `admin / managedTeamIds / teams`，据此隐藏菜单、路由与按钮（`useCapabilities` 钩子 + `RequireAdmin` 守卫）
-- 前端隐藏只是体验优化，**真正的越权拦截始终在后端接口**
-
----
-
-## 使用流程
-
-1. **接入业务系统**：管理控制台 → 数据源，填写 JDBC 连接并测试；系统自动内省表与字段
-2. **登记接口**：管理控制台 → 接口，配置 URL、方法、参数模板与鉴权（加密存储）
-3. **导入扩展包**：管理控制台 → 扩展包，上传 `.bpk` zip；内置 `db / http / chart / export` 已随包提供
-4. **编排技能包**：管理控制台 → 技能，写 Markdown 提示词，用 `{{datasource:xxx}}` 等占位符引用资源，选择可用工具
-5. **绑定智能体**：为智能体选择技能包与扩展包，即可在对话页使用
-6. **分享**：生成分享链接，匿名访问时自动降级为只读能力
+- Every list endpoint filters by ownership (`owner_id` / `team_id`); no unauthorized data is returned
+- Extension packs: declarative packs can be imported by anyone; packs containing jar code are equivalent to arbitrary server-side code and are admin-only
+- Extension visibility is enforced in four places: pack list/detail, `/api/extensions/tools`, `{{extension:code}}` placeholder resolution, and agent binding
+- The team context (`X-Data-Context`) is validated against membership — **a forged team ID returns 403**
+- The frontend reads `GET /api/capabilities` (`admin` / `managedTeamIds` / `teams`) to hide menus, routes, and buttons (`useCapabilities` hook + `RequireAdmin` guard)
+- Hiding UI is UX only; **authorization is always enforced on the backend**
 
 ---
 
-## 文档
+## Usage
 
-| 文档 | 内容 |
+1. **Connect a business system**: Admin console → Datasources, enter the JDBC connection and test it; tables and columns are introspected automatically
+2. **Register APIs**: Admin console → APIs, configure URL, method, parameter template, and auth (encrypted at rest)
+3. **Import extension packs**: Admin console → Extensions, upload a `.bpk` zip; builtin `db / http / chart / export` ship with the platform
+4. **Author skill packs**: Admin console → Skills, write a Markdown prompt, reference resources with `{{datasource:xxx}}`, pick the allowed tools
+5. **Bind an agent**: attach skill packs and extension packs to an agent, then use it from the chat page
+6. **Share**: generate a share link; anonymous visitors are automatically downgraded to read-only capabilities
+
+---
+
+## Documentation
+
+| Document | Contents |
 |---|---|
-| [docs/README.md](docs/README.md) | 文档索引 |
-| [docs/extension-authoring.md](docs/extension-authoring.md) | 扩展包开发指南（manifest、四类声明式工具、jar 插件、前端渲染器） |
-| [docs/skill-authoring-guide.md](docs/skill-authoring-guide.md) | 技能包编写指南（占位符、触发方式、表结构注入模式） |
-| [docs/database-setup.md](docs/database-setup.md) | 建表、环境变量、容器化与容量规划 |
-| [extensions-samples/chart-pro](extensions-samples/chart-pro) | 可直接导入的扩展示例包 |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/extension-authoring.md](docs/extension-authoring.md) | Extension packs: manifest, four declarative kinds, jar plugins, frontend renderers |
+| [docs/skill-authoring-guide.md](docs/skill-authoring-guide.md) | Skill packs: placeholders, trigger modes, schema injection |
+| [docs/database-setup.md](docs/database-setup.md) | Schema, environment variables, containers, capacity planning |
+| [extensions-samples/chart-pro](extensions-samples/chart-pro) | Ready-to-import sample extension pack |
 
 ---
 
-## 安全提示
+## Security Notes
 
-- 本仓库**不包含任何真实凭证**；`application.yml` 中的默认值仅用于本地开发
-- 生产部署务必设置 `BIZAGENT_JWT_SECRET`、`BIZAGENT_MASTER_KEY`、`BIZAGENT_CORS_ORIGINS`
-- 扩展包 jar 拥有数据库访问与出站 HTTP 能力，**仅授予可信来源**，导入前请审计代码
-- 提交代码前请执行 `./scripts/install-git-hooks.sh` 启用密钥扫描钩子（详见 [SECURITY.md](SECURITY.md)）
-- 启动时会检查安全配置：`prod` profile 下若仍使用仓库默认 JWT 密钥会直接拒绝启动
-- 发现安全问题请参考 [SECURITY.md](SECURITY.md)，不要直接开公开 issue
+- This repository contains **no real credentials**; defaults in `application.yml` are for local development only
+- Production deployments must set `BIZAGENT_JWT_SECRET`, `BIZAGENT_MASTER_KEY`, and `BIZAGENT_CORS_ORIGINS`
+- Extension jars have database access and outbound HTTP capability — **only install packs you trust**, and review the code first
+- Run `./scripts/install-git-hooks.sh` after cloning to enable the secret-scanning pre-commit hook (see [SECURITY.md](SECURITY.md))
+- At startup the app refuses to boot under the `prod` profile if the default JWT secret is still in use
+- To report a vulnerability, follow [SECURITY.md](SECURITY.md); please do not open a public issue
 
 ---
 
-## 贡献
+## Contributing
 
-欢迎提交 Issue 与 Pull Request，请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-## 许可证
+## License
 
 [MIT](LICENSE)

@@ -1,122 +1,125 @@
-# 贡献指南
+# Contributing
 
-感谢你愿意为 BizAgent 做贡献。本文说明本地环境、代码约定与提交规范。
+**English** · [简体中文](CONTRIBUTING.zh-CN.md)
 
-## 一、环境准备
+Thanks for your interest in BizAgent. This guide covers local setup, code conventions, and commit rules.
 
-| 依赖 | 版本 |
+## 1. Prerequisites
+
+| Dependency | Version |
 |---|---|
 | JDK | 22+ |
 | Node.js | 20+ |
 | PostgreSQL | 15+ |
-| Maven | 随仓库 `mvnw` 提供，无需单独安装 |
+| Maven | provided by `mvnw`, no separate install |
 
 ```bash
-# 建库建表
+# Create database and schema
 createdb bizagent
 psql -d bizagent -f backend/schema.sql
 
-# 后端（http://localhost:8080）
+# Backend (http://localhost:8080)
 export BIZAGENT_DB_URL=jdbc:postgresql://localhost:5432/bizagent
 export BIZAGENT_DB_USERNAME=postgres
 export BIZAGENT_DB_PASSWORD=postgres
 ./backend/mvnw -f pom.xml -pl backend -am spring-boot:run
 
-# 前端（http://localhost:5173，已配置 /api 与 /ws 代理）
+# Frontend (http://localhost:5173, /api and /ws already proxied)
 cd frontend && npm install && npm run dev
 ```
 
-也可以直接 `cp .env.example .env && docker compose up -d --build`。
+Or simply `cp .env.example .env && docker compose up -d --build`.
 
-## 二、初始化与本地产物
+## 2. One-time Setup
 
 ```bash
-# 首次克隆后：启用仓库内置的提交前检查（密钥扫描）
+# After the first clone: enable the repository's pre-commit secret scan
 ./scripts/install-git-hooks.sh
 ```
 
-该脚本只是设置 `git config core.hooksPath .githooks`，不安装任何外部依赖。
-提交时会自动拦截 `.env`、`*.key`、`data/` 等敏感文件，以及 `sk-*`、AWS/GitHub Token、
-私钥、带口令的 JDBC 连接串等疑似密钥（误报可用 `git commit --no-verify` 跳过）。
+The script only sets `git config core.hooksPath .githooks` and installs nothing external.
+It blocks commits containing `.env`, `*.key`, `data/`, and suspicious secrets such as `sk-*`,
+AWS/GitHub tokens, private keys, or JDBC URLs with inline credentials
+(use `git commit --no-verify` for confirmed false positives).
 
-## 三、常用命令
+## 3. Common Commands
 
 ```bash
-# 后端：编译 + 全部单元测试
+# Backend: compile + run all unit tests
 ./backend/mvnw -f pom.xml -pl backend -am test
 
-# 后端：只跑某个测试类
+# Backend: run a single test class
 ./backend/mvnw -f pom.xml -pl backend -am test -Dtest=OutboundPolicyTest
 
-# 前端：类型检查 + 生产构建
+# Frontend: type check + production build
 cd frontend && npm run build
 
-# 前端：lint
+# Frontend: lint
 cd frontend && npm run lint
 
-# 全量打包（前端产物并入 fat jar）
+# Full build (frontend bundled into the fat jar)
 ./build.sh
 ```
 
-> Windows 用户把 `./backend/mvnw` 换成 `backend\mvnw.cmd`。
+> On Windows, replace `./backend/mvnw` with `backend\mvnw.cmd`.
 
-## 四、代码约定
+## 4. Conventions
 
-**后端**
-- 包结构：`agent` / `extension` / `service` / `controller` / `entity` / `repository` / `security` / `config`
-- 新增「能力」不要写进 `backend`：按 [扩展包开发指南](docs/extension-authoring.md) 做成扩展包
-- 数据访问：实体走 JPA；业务系统数据源查询必须经过 `ReadOnlySqlExecutor`（只读、限行、限时）
-- 任何新增的对外 HTTP / SQL 出口都要经过 `OutboundPolicy` 校验
-- 变更表结构时同步更新 `backend/schema.sql` 与 `docker/postgres/init/01-schema.sql`（两份必须一致）
+**Backend**
+- Packages: `agent` / `extension` / `service` / `controller` / `entity` / `repository` / `security` / `config`
+- Do not add new "capabilities" to `backend`: package them as an extension pack (see [extension authoring guide](docs/extension-authoring.md))
+- Data access: entities via JPA; business datasource queries must go through `ReadOnlySqlExecutor` (read-only, row and time limited)
+- Any new outbound HTTP / SQL must pass `OutboundPolicy`
+- Schema changes must be applied to both `backend/schema.sql` and `docker/postgres/init/01-schema.sql` (they must stay identical)
 
-**前端**
-- 统一使用 `src/components/admin/ui.tsx` 中的设计系统组件，避免各页面各写一套样式
-- 反馈交互用 `src/components/common/feedback.tsx` 的 `toast` / `confirmDialog`，不要用 `alert` / `confirm`
-- 页面组件默认 `React.lazy` 按路由分包
+**Frontend**
+- Use the design system in `src/components/admin/ui.tsx`; do not hand-roll styles per page
+- Use `toast` / `confirmDialog` from `src/components/common/feedback.tsx` instead of `alert` / `confirm`
+- Page components are route-split with `React.lazy` by default
 
-**注释与文档**
-- 注释写「为什么」，不写「是什么」；公共 API 与安全相关逻辑必须有说明
-- 面向使用者的文档放 `docs/`，并在 `docs/README.md` 建立索引
+**Comments and docs**
+- Comments explain "why", not "what"; public APIs and security-relevant logic must be documented
+- User-facing docs live in `docs/` and are indexed in `docs/README.md`
 
-## 五、提交规范
+## 5. Commit Messages
 
-采用语义化前缀：
+Use semantic prefixes:
 
 ```
-feat: 新增扩展包渲染器热注册
-fix: 修复匿名会话仍可调用受限工具
-docs: 补充数据源驱动目录说明
-refactor: 拆分 AgentRunPlanner 的作用域计算
-test: 补充 OutboundPolicy 白名单用例
-chore: 升级依赖
+feat: add hot registration for extension renderers
+fix: prevent restricted tools in anonymous sessions
+docs: clarify the external driver directory
+refactor: extract scope calculation from AgentRunPlanner
+test: cover OutboundPolicy allow-list cases
+chore: bump dependencies
 ```
 
-- 一个 PR 只做一件事，改动尽量聚焦
-- 涉及行为变更请同步更新文档与 `CHANGELOG.md`
-- 提交前确保 `mvnw test` 与 `npm run build` 均通过
+- One PR does one thing
+- Behavior changes must update the docs and `CHANGELOG.md`
+- Make sure `mvnw test` and `npm run build` both pass before committing
 
-## 六、提交 Pull Request
+## 6. Pull Requests
 
-1. Fork 本仓库并从 `main` 切出分支：`feat/xxx`、`fix/xxx`
-2. 完成改动并自测（包含异常路径）
-3. 在 PR 描述中说明：**背景 / 改动内容 / 验证方式 / 影响面**
-4. 涉及安全相关改动（鉴权、SSRF、凭证、扩展包加载）请额外说明威胁模型
+1. Fork the repo and branch from `main`: `feat/xxx`, `fix/xxx`
+2. Implement and self-test, including error paths
+3. Describe **context / changes / verification / impact** in the PR
+4. For security-related changes (auth, SSRF, credentials, extension loading) also describe the threat model
 
-## 七、新增扩展包
+## 7. Adding an Extension Pack
 
-示例包见 [extensions-samples/chart-pro](extensions-samples/chart-pro)。开发流程：
+See the sample at [extensions-samples/chart-pro](extensions-samples/chart-pro):
 
 ```bash
 cd extensions-samples/chart-pro
 npm install
-npm run build      # 产出 ui/entry.js
-npm run pack       # 产出 dist/chart_pro.bpk
+npm run build      # produces ui/entry.js
+npm run pack       # produces dist/chart_pro.bpk
 ```
 
-在「管理控制台 → 扩展包」导入 `.bpk` 验证效果，再把源码一并提交到 `extensions-samples/`。
+Import the `.bpk` from the admin console to verify, then commit the source along with the sample.
 
-## 八、行为准则
+## 8. Code of Conduct
 
-- 尊重不同经验水平的贡献者，评审聚焦代码与技术决策
-- 不提交任何真实凭证、客户数据或内部系统地址
-- 发现安全漏洞请按 [SECURITY.md](SECURITY.md) 私下报告
+- Respect contributors of all experience levels; reviews focus on code and technical decisions
+- Never commit real credentials, customer data, or internal hostnames
+- Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md)
